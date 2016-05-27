@@ -27,7 +27,7 @@ getwd()
 
 the_generation_list = Set_generations_list(10,6000,5)
 the_layers_list = Set_layers_list("layer0")
-the_markers_list = Set_markers_list("A1","A2")
+the_markers_list = Set_markers_list("A1","A2","A3","A4","A5","A6","A7","A8","A9","A10")
 
 the_file_names = Get_file_names(the_generation_list, the_layers_list)
 raw_data = Get_data_from_files(the_file_names = the_file_names,
@@ -102,32 +102,40 @@ ggplot(data = compute.Hs.df.numeric.gen)+
   coord_cartesian(ylim=c(0,1), xlim=c(0,6000))
 
 ## Plot Grouped demes (pop1,pop2,pop3,pop4,pop5,pop6)
-
-raw_data.grouped.demes = raw_data
-
-group.demes.function = function(X){
-  ## Group demes according to their population code (eg "pop1A" will be "pop1", "pop6E" will be "pop6")
-  varN = NULL
-  for(i in popNames(X)){
-    if(i=="pop1A"){
-      varN = c(varN, "pop1")
-    } else if (i == "pop2A"){
-      varN = c(varN, "pop2")
-    } else if (i == "pop3A"){
-      varN = c(varN, "pop3")
-    } else if (i == "pop4A" || i == "pop4B" ){
-      varN = c(varN, "pop4")
-    } else if (i == "pop5A" || i == "pop5B" || i == "pop5C"){
-      varN = c(varN, "pop5")
-    } else if (i == "pop6A" || i == "pop6B" || i == "pop6C" || i == "pop6D" || i == "pop6E"){
-      varN = c(varN, "pop6")
+Transform_into_simple_pop = function(genind_array_obj){
+  # Transforms a genind array grouping populations into simpler(read broader) groups
+  # pop1A will be pop1
+  # its defined for the following population code pop[1-6][A-E]
+  # TODO refactor so that it uses regex instead of having it explicitly defined
+  
+  Group.demes.function = function(X){
+    ## Group demes according to their population code (eg "pop1A" will be "pop1", "pop6E" will be "pop6")
+    varN = NULL
+    for(i in popNames(X)){
+      if(i=="pop1A"|| i == "pop1B" || i == "pop1C" || i == "pop1D" || i == "pop1E"){
+        varN = c(varN, "pop1")
+      } else if (i == "pop2A"|| i == "pop2B" || i == "pop2C" || i == "pop2D" || i == "pop2E"){
+        varN = c(varN, "pop2")
+      } else if (i == "pop3A"|| i == "pop3B" || i == "pop3C" || i == "pop3D" || i == "pop3E"){
+        varN = c(varN, "pop3")
+      } else if (i == "pop4A" || i == "pop4B" || i == "pop4C" || i == "pop4D" || i == "pop4E"){
+        varN = c(varN, "pop4")
+      } else if (i == "pop5A" || i == "pop5B" || i == "pop5C"|| i == "pop5D" || i == "pop5E"){
+        varN = c(varN, "pop5")
+      } else if (i == "pop6A" || i == "pop6B" || i == "pop6C" || i == "pop6D" || i == "pop6E"){
+        varN = c(varN, "pop6")
+      }
     }
+    popNames(X) = varN
+    return(X)
   }
-  popNames(X) = varN
-  return(X)
+  
+  raw_data.grouped.demes = genind_array_obj
+  
+  raw_data.grouped.demes = lapply(X = raw_data.grouped.demes,FUN = Group.demes.function)
+  
+  return(raw_data.grouped.demes)
 }
-
-raw_data.grouped.demes = lapply(X = raw_data.grouped.demes,FUN = group.demes.function)
 
 hs.df.grouped.demes = Compute.Hs.make.df(raw_data.grouped.demes)
 tail(hs.df.grouped.demes)
@@ -179,7 +187,7 @@ Get_genind_from_gen = function(a_genind_array, generation){
 ###################
 ####Fst#####
 ###################
-Compute.Fst.plot = function(gen.ind.object,matrix.as.triangle = T, upper.triangle = F){
+Compute.Fst.plot = function(gen.ind.object,matrix.as.triangle = T, upper.triangle = F, has.in.graph.txt = F){
   compute.Fst = gen.ind.object
   compute.Fst.generation = gen.ind.object@other$generation
   #compute.Fst = compute.Fst[pop=c("pop1A","pop2A","pop3A","pop4A","pop4B","pop5A","pop5B","pop5C","pop6A","pop6B","pop6C","pop6D","pop6E")]
@@ -237,7 +245,7 @@ Compute.Fst.plot = function(gen.ind.object,matrix.as.triangle = T, upper.triangl
   fst.heatmap
   
   fst.heatmap= fst.heatmap+
-    geom_text(aes( Var1,Var2, label = value), color = "black", size = 4) +
+    #geom_text(aes( Var1,Var2, label = value), color = "black", size = 4) +
     theme(
       axis.title.x = element_blank(),
       axis.title.y = element_blank(),
@@ -251,14 +259,24 @@ Compute.Fst.plot = function(gen.ind.object,matrix.as.triangle = T, upper.triangl
     guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
                                  title.position = "top", title.hjust = 0.5))+
     ggtitle(paste("Pairwise Fst - Generation ",compute.Fst.generation))
+  
+  if(has.in.graph.txt){
+    fst.heatmap = fst.heatmap + geom_text(aes( Var1,Var2, label = value), color = "black", size = 4)
+  }
+  
   return(fst.heatmap)
 }
 #####
 #####
 #####
 
-Compute.Fst.plot(raw_data[[598]])## just before environmental change
-Compute.Fst.plot(raw_data[[700]])## just after environmental change
+Compute.Fst.plot(raw_data[[598]],has.in.graph.txt = T)## just before environmental change
+Compute.Fst.plot(raw_data[[700]],has.in.graph.txt = T)## just after environmental change
+
+a = Compute.Fst.plot(raw_data[[1199]],has.in.graph.txt = T)
+b = Compute.Fst.plot(raw_data[[1199]],has.in.graph.txt = F)
+ggplotly(a)
+ggplotly(b)
 
 the.fst.plot = Compute.Fst.plot(raw_data[[50]])
 raw_data[[99]]@other$generation
@@ -266,7 +284,11 @@ raw_data[[119]]@other$generation
 raw_data[[11]]@pop
 length(raw_data)
 
-
+########################################################################
+########################################################################
+############  MAKE GRID OUT OF FST PLOTS
+########################################################################
+########################################################################
 
 get_legend<-function(myggplot){
   tmp <- ggplot_gtable(ggplot_build(myggplot))
@@ -297,7 +319,7 @@ fst.4000$layers[[8]] = NULL
 fst.5000$layers[[8]] = NULL
 fst.6000$layers[[8]] = NULL
 
-grid.arrange(
+a = grid.arrange(
   blank_plot,
   the_legend,
   blank_plot,
@@ -314,9 +336,13 @@ grid.arrange(
   widths = c(5, 5, 5), heights = c(0.7,3, 3, 3)
   
 )
+####################################################################
+####################################################################
+####################################################################
+
 
 ####################################################################
-## Use code below to get all the images needed for a gif 
+## Use code below to get all the images needed for a gif of Fst plots
 ## (potentially change the format to a more lossless format instead of jpeg)
 ## Save plots to list
 plot_list = list()
@@ -332,6 +358,8 @@ for(i in seq(from = initial.genind.obj,to = length(raw_data),by = 20)){
   
 }
 ####################################################################
+
+
 
 #########################################################
 #########################################################
@@ -387,7 +415,7 @@ Make_pairFst_distance_plots = function(genind_array, generation){
   return(the_plot)
 }
 
-
+ggplotly()
 
 dist.plot.gen3000 = Make_pairFst_distance_plots(genind_array = raw_data, generation = 3000)
 dist.plot.gen3050 = Make_pairFst_distance_plots(genind_array = raw_data, generation = 3050)
@@ -742,4 +770,4 @@ adegenetServer(what = "DAPC")
 #######################################
 #######################################
 #######################################
-
+library(plotly)
