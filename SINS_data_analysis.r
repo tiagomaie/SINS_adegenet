@@ -1,16 +1,23 @@
-  if(!require("adegenet")) install.packages("adegenet", dependencies = TRUE)
-  if(!require("ade4")) install.packages("ade4", dependencies = TRUE)
-  if(!require("hierfstat")) install.packages("hierfstat", dependencies = TRUE)
-  if(!require("pegas")) install.packages("pegas", dependencies = TRUE)
-  if(!require("ggplot2")) install.packages("ggplot2", dependencies = TRUE)
-  if(!require("reshape2")) install.packages("reshape2", dependencies = TRUE)
-  if(!require("gridExtra")) install.packages("gridExtra", dependencies = TRUE)
-  # if(!require("cowplot")) install.packages("cowplot", dependencies = TRUE)
-  if(!require("plotly")) install.packages("plotly", dependencies = TRUE)
-  if(!require("Hmisc")) install.packages("Hmisc", dependencies = TRUE)
-  if(!require("plyr")) install.packages("plyr", dependencies = TRUE)
-  if(!require("PopGenReport")) install.packages("PopGenReport", dependencies = TRUE)
+if(!require("devtools")){
+  install.packages("devtools", dependencies = TRUE)
+  install_github("thibautjombart/adegenet")
+  library("adegenet")
+  }
+
+
   
+if(!require("ade4")) install.packages("ade4", dependencies = TRUE)
+if(!require("hierfstat")) install.packages("hierfstat", dependencies = TRUE)
+if(!require("pegas")) install.packages("pegas", dependencies = TRUE)
+if(!require("ggplot2")) install.packages("ggplot2", dependencies = TRUE)
+if(!require("reshape2")) install.packages("reshape2", dependencies = TRUE)
+if(!require("gridExtra")) install.packages("gridExtra", dependencies = TRUE)
+#if(!require("cowplot")) install.packages("cowplot", dependencies = TRUE)
+#if(!require("plotly")) install.packages("plotly", dependencies = TRUE)
+if(!require("Hmisc")) install.packages("Hmisc", dependencies = TRUE)
+if(!require("plyr")) install.packages("plyr", dependencies = TRUE)
+if(!require("PopGenReport")) install.packages("PopGenReport", dependencies = TRUE)
+if(!require("data.table")) install.packages("data.table", dependencies = TRUE)
   
   #library(adegenet)
   #library(ade4)
@@ -92,20 +99,24 @@
   #+++++++++++++++
   Read_data_func = function(name_of_file, markers_list, is_marker_diploid = TRUE, simulation_ID = 0){
   
-    #name_of_file = the_file_names[[1201]]
+    #name_of_file = the_file_names[[9]]
     #markers_list = c("A1","A2","A3","A4","A5","A6","A7","A8","A9","A10")
     #is_marker_diploid=T
     #simulation_ID=1
     #setwd(dir = paste(the_path_to_data,"Adegenet_sim_1","/",sep = ""))
     
-    
+    if(FALSE){
+      #***fread is much faster than an optimized read.table***
     #read first 5 rows of the table
-    tab5rows <- read.table(file = paste(name_of_file,markers_list[1],sep = ""), header = FALSE, nrows = 100,row.names = 1,na.strings = "NA")
+    #tab5rows <- read.table(file = paste(name_of_file,markers_list[1],sep = ""), header = FALSE, nrows = 100,row.names = 1,na.strings = "NA")
     
     #get the classes of the columns of the table
-    tabClasses <- sapply(tab5rows, class)
-    data_file <- read.table(paste(name_of_file,markers_list[1],sep = ""), header = FALSE, colClasses = tabClasses, row.names = 1,na.strings = "NA")
+    #tabClasses <- sapply(tab5rows, class)
+    }
+    data_file <- fread(input = paste(name_of_file,markers_list[1],sep = ""),encoding = "UTF-8", header = FALSE, na.strings = "NA",data.table = F)
+    
     # get the number of rows that the table will have, use it later to speed up process
+    # not sure if it is that much faster, consider erasing it
     sizeOfTable = nrow(data_file)
     
     markerCondition = markers_list == "MT" | markers_list == "Y"
@@ -116,9 +127,7 @@
     data_file = NULL
     marker_data.haplo = NULL
     marker_data.diplo = NULL
-    
-    
-    
+
     a_file_name = NULL
     
     #bind_markers.diplo = NULL
@@ -131,10 +140,9 @@
       a_file_name = paste(name_of_file,markers_list[marker],sep = "")
       
       #read the rest (or a bigger part) of the table knowing the class of the columns speeds up the reading process
-      #print(a_file_name)
-      
-      data_file <- read.table(a_file_name, header = FALSE, colClasses = tabClasses,nrows = sizeOfTable, row.names = 1,na.strings = "NA")
-      
+      #data_file <- read.table(a_file_name, header = FALSE, colClasses = tabClasses, nrows = sizeOfTable, row.names = 1,na.strings = "NA")
+      #fread is much faster than an optimized read.table
+      data_file <- fread(input = a_file_name, header = FALSE, encoding = "UTF-8", na.strings = "NA",data.table = F)
       
       #if marker is Y or MTdna then it is haploid data, save that markers col (instead of 2 cols for diploid)
       if(markerCondition[marker]){
@@ -143,7 +151,10 @@
         bind_markers.haplo[,marker] = marker_data.haplo
       }else{
         #marker_data.diplo = as.matrix(paste(data_file$V2,data_file$V3,sep = "/"))
+        
         marker_data.diplo = as.vector(data_file$V2)
+        
+        
         #length(marker_data.diplo)
         #bind_markers.diplo = cbind(bind_markers.diplo,marker_data.diplo)
         bind_markers.diplo[,marker] = marker_data.diplo
@@ -154,11 +165,11 @@
     
     if(is_marker_diploid){
       # note ncode set to 3 - alleles are considered to be coded by three characters
-      markers.diplo_df2genind = df2genind(X = bind_markers.diplo, ploidy = 2, ncode = 3,ind.names = rownames(data_file),sep = "/") 
+      markers.diplo_df2genind = df2genind(X = bind_markers.diplo, ploidy = 2, ncode = 3,ind.names = data_file$V1, sep = "/") 
       # define pops
-      markers.diplo_df2genind@pop = data_file$V6
+      markers.diplo_df2genind@pop = factor(data_file$V5)
       # define coords
-      xy_coords = cbind(data_file$V4,data_file$V5)
+      xy_coords = cbind(data_file$V3,data_file$V4)
       markers.diplo_df2genind@other$xy = xy_coords
       # define gen
       markers.diplo_df2genind@other$generation = current_generation
@@ -167,11 +178,11 @@
       # return genind object
       return(markers.diplo_df2genind)
     }else{
-      markers.haplo_df2genind = df2genind(X = bind_markers.haplo, ploidy = 1, ncode = 3,ind.names = rownames(data_file),sep = "/",NA.char = "NA")  
+      markers.haplo_df2genind = df2genind(X = bind_markers.haplo, ploidy = 1, ncode = 3,ind.names = data_file$V1, sep = "/", NA.char = "NA")  
       # define pops
-      markers.haplo_df2genind@pop = data_file$V6
+      markers.haplo_df2genind@pop = data_file$V5
       # define coords
-      xy_coords = cbind(data_file$V4,data_file$V5)
+      xy_coords = cbind(data_file$V3,data_file$V4)
       markers.haplo_df2genind@other$xy = xy_coords
       # define gen
       markers.haplo_df2genind@other$generation = current_generation
@@ -224,7 +235,7 @@
     ####test data
     #set_markers = c("A1")
     #generations_list = seq(0,100,10)
-    #number_of_simulations=2
+    #number_of_simulations=1
     #the_file_names= Get_file_names(generations_list,"layer0")
     #path_to_data = the_path_to_data
     #is_marker_diploid = TRUE
@@ -235,13 +246,15 @@
     
     
     for(j in 1:number_of_simulations){
-      setwd(paste(path_to_data,"Adegenet_sim_",j,"/",sep=""))
+      setwd(paste(path_to_data,"/","Adegenet_sim_",j,"/",sep=""))
       
       the_data_list = vector(mode = "list",length = length(the_file_names))
-      for(i in the_file_names){
+      for(i in 1:length(the_file_names)){
         
         #the_data_list = c(the_data_list,Read_data_func(i, set_markers,is_marker_diploid=is_marker_diploid, simulation_ID = j))
-        the_data_list[[i]] <- Read_data_func(i, set_markers,is_marker_diploid=is_marker_diploid, simulation_ID = j)
+        the_data_list[[i]] <- Read_data_func(the_file_names[i], set_markers,is_marker_diploid=is_marker_diploid, simulation_ID = j)
+        #the_data_list = lapply(the_file_names,FUN = Read_data_func, name_of_file = the_file_names, markers_list = set_markers, is_marker_diploid = T, simulation_ID = j)
+        
       }
       #set names of elements in list to the generations that they belong to
       names(the_data_list) = generations_list
@@ -305,6 +318,162 @@
             ylab="Number of genotypes",las=3)
     title(paste("Generation: ",the_genind_obj@other$generation), outer=TRUE)
   
+    
+    the_plot = recordPlot()
+    dev.off()
+    
+    bartlett_test = bartlett.test(list(summary_genind$Hexp,summary_genind$Hobs))
+    
+    the_ttest = t.test(summary_genind$Hexp,summary_genind$Hobs,pair=T,var.equal=TRUE,alter="greater")
+    
+    results = list(summary_genind,bartlett_test,the_ttest,the_plot)
+    
+    print("Summary Calcs done.")
+    #return(summary_genind)
+    return(results)
+  }
+  
+  Do_summary_calcs_updated = function(simulation_name, the_genind_array, the_path_to_plot_folder, groupBy="simulation", simGroup=NULL, genGroup=NULL){
+    
+    if(FALSE){
+      
+      simulation_name=name_of_simulation
+      the_genind_array=raw_data_multi_sim
+      the_path_to_plot_folder=the_path_to_plot_folder
+      groupBy="simulation"
+      simGroup=1
+      genGroup=100
+      
+      
+    }
+    
+    if(FALSE){
+    mySummary= function(object, verbose = TRUE, ...){
+      x <- object
+      if(!is.genind(x)) stop("Provided object is not a valid genind.")
+      
+      
+      if(is.null(pop(x))){
+        pop(x) <- rep("P1", nInd(x))
+      }
+      
+      ## BUILD THE OUTPUT ##
+      ## type-independent stuff
+      res <- list()
+      
+      res$n <- nrow(myTab(x))
+      
+      res$n.by.pop <- as.numeric(table(pop(x)))
+      names(res$n.by.pop) <- popNames(x)
+      
+      ## PA case ##
+      if(x@type=="PA"){
+        ## % of missing data
+        res$NA.perc <- 100*sum(is.na(myTab(x)))/prod(dim(myTab(x)))
+        
+        return(invisible(res))
+      }
+      
+      
+      ## codom case ##
+      res$loc.n.all <- nAll(x)
+      
+      temp <- myTab(genind2genpop(x,quiet=TRUE))
+      
+      res$pop.n.all <- apply(temp,1,function(r) sum(r!=0,na.rm=TRUE))
+      
+      res$NA.perc <- 100*(1-mean(propTyped(x,by="both")))
+      
+      ## handle heterozygosity
+      if(any(ploidy(x) > 1)){
+        ## auxiliary function to compute observed heterozygosity
+        temp <- lapply(seploc(x),tab, freq=TRUE)
+        f1 <- function(tab){
+          H <- apply(tab, 1, function(vec) any(vec > 0 & vec < 1))
+          H <- mean(H,na.rm=TRUE)
+          return(H)
+        }
+        
+        res$Hobs <- unlist(lapply(temp,f1))
+        
+        ## auxiliary function to compute expected heterozygosity
+        ## freq is a vector of frequencies
+        f2 <- function(freq){
+          H <- 1-sum(freq*freq,na.rm=TRUE)
+          return(H)
+        }
+        
+        temp <- genind2genpop(x,pop=rep(1,nInd(x)),quiet=TRUE)
+        temp <- myTab(temp, freq=TRUE, quiet=TRUE)
+        res$Hexp <-tapply(temp^2, locFac(x), function(e) 1-sum(e, na.rm=TRUE))
+      } else { # no possible heterozygosity for haploid genotypes
+        res$Hobs <- 0
+        res$Xexp <- 0
+      }
+      
+      ## add class and return
+      class(res) <- "genindSummary"
+      return(res)
+    }  # end summary.genind
+    }
+    
+    allData_summary = rapply(object = the_genind_array,f = function(X){return(summary(X))}, how = 'list')
+    
+    #allData_meanSummary = rapply(allData_summary, mean, how='list')
+    
+    allData_meanSummary = rapply(allData_summary, mean, how='replace')
+    lapply(allData_meanSummary, function(x) split(x,f = '[['))
+    
+    #gen - stat
+    
+    
+    lapply(X = allData_meanSummary,FUN = lapply,'[[',7)
+    
+    
+    allData_meanSimSummary=NULL
+    allData_meanSimSummary$Hexp=mean(unlist(lapply(lapply(allData_meanSummary, '[[',10), '[[',7)))
+    
+    asd = mean(unlist(lapply(lapply(allData_meanSummary, '[[',10), '[[',7)))
+    str(asd)
+    
+    
+    lapply(allData_meanSummary, function(x){lapply(x,FUN ='[[',2)},mean)
+    
+    allData_meanSummary_1 = rbindlist(allData_meanSummary,fill=T, use.names = T)
+    
+    
+    unlist(allData_meanSummary[[1]][[10]], recursive = F, use.names = T)
+    
+    str(allData_meanSummary,max.level = 2)
+    
+    allData_meanSummary
+    
+    as.data.frame(allData_meanSummary[[1]][[1]]$pop.n.all)
+    
+    ggplot(allData_meanSummary)
+    
+    
+    pdf(file = paste(the_path_to_plot_folder,"/",simulation_name,"_SummaryStats.pdf",sep=""),width = 20, height = 15)
+    par(mfrow=c(2,2),oma=c(0,0,1,0))#sets 2x2 spots for the graphics and sets space for outer title
+    
+    plot(summary_genind$n.by.pop, summary_genind$pop.n.all, xlab="Colonies sample size",
+         ylab="Number of alleles",main="Alleles numbers and sample sizes",
+         type="n",
+         xlim=c(range(summary_genind$n.by.pop)[1]-5,range(summary_genind$n.by.pop)[2]+5),
+         ylim=c(range(summary_genind$pop.n.all)[1]-5,range(summary_genind$pop.n.all)[2]+5))
+    text(summary_genind$n.by.pop,summary_genind$pop.n.all,lab=names(summary_genind$n.by.pop))
+    barplot(summary_genind$loc.n.all, ylab="Number of alleles",
+            main="Number of alleles per locus")
+    barplot(summary_genind$Hexp-summary_genind$Hobs,
+            ylab="Hexp - Hobs",col=ifelse(summary_genind$Hexp-summary_genind$Hobs>0,"red","blue"))
+    title(expression(phantom("Heterozygosity: ") * "expected" * phantom(" - observed")),col.main="red")
+    title(expression(phantom("Heterozygosity: expected - ") * "observed"),col.main="blue")
+    title(expression("Heterozygosity:" * phantom(" expected ") * "-" * phantom(" observed"),col.main="black"))
+    
+    barplot(summary_genind$n.by.pop, main="Sample sizes per population",
+            ylab="Number of genotypes",las=3)
+    title(paste("Generation: ",the_genind_obj@other$generation), outer=TRUE)
+    
     
     the_plot = recordPlot()
     dev.off()
@@ -960,7 +1129,7 @@
     df = rbind(df,c("G","C",0.11,259.7))
     df = rbind(df,c("G","D",0.10,210.5))
     df = rbind(df,c("G","E",0.09,119.6))
-    df = rbind(df,c("G","I",0.08,235.5))
+    #df = rbind(df,c("G","I",0.08,235.5))
     
     df = rbind(df,c("F","H",0.13,319.2))
     df = rbind(df,c("F","B",0.05,432.6))
@@ -968,34 +1137,34 @@
     df = rbind(df,c("F","C",0.04,304.4))
     df = rbind(df,c("F","D",0.03,170.2))
     df = rbind(df,c("F","E",0.03,173.6))
-    df = rbind(df,c("F","I",0.19,430.8))
+    #df = rbind(df,c("F","I",0.19,430.8))
     
     df = rbind(df,c("H","B",0.15,427.7))
     df = rbind(df,c("H","A",0.15,528.9))
     df = rbind(df,c("H","C",0.16,444.5))
     df = rbind(df,c("H","D",0.15,346.6))
     df = rbind(df,c("H","E",0.15,232.0))
-    df = rbind(df,c("H","I",0.12,123.0))
+    #df = rbind(df,c("H","I",0.12,123.0))
     
     df = rbind(df,c("B","A",0.13,111.5))
     df = rbind(df,c("B","C",0.06,194.8))
     df = rbind(df,c("B","D",0.07,275.5))
     df = rbind(df,c("B","E",0.07,279.4))
-    df = rbind(df,c("B","I",0.21,426.6))
+    #df = rbind(df,c("B","I",0.21,426.6))
     
     df = rbind(df,c("A","C",0.13,190.4))
     df = rbind(df,c("A","D",0.14,313.1))
     df = rbind(df,c("A","E",0.15,352.0))
-    df = rbind(df,c("A","I",0.30,536.0))
+    #df = rbind(df,c("A","I",0.30,536.0))
     
     df = rbind(df,c("C","D",0.04,136.6))
     df = rbind(df,c("C","E",0.05,220.9))
-    df = rbind(df,c("C","I",0.23,496.5))
+    #df = rbind(df,c("C","I",0.23,496.5))
     
     df = rbind(df,c("D","E",0.01,116.0))
-    df = rbind(df,c("D","I",0.22,425.8))
+    #df = rbind(df,c("D","I",0.22,425.8))
     
-    df = rbind(df,c("E","I",0.22,311.3))
+    #df = rbind(df,c("E","I",0.22,311.3))
     
     df$forest1 = as.factor(df$forest1)
     df$forest2 = as.factor(df$forest2)
@@ -1007,7 +1176,11 @@
     #x=(px*10)/140
     
     df$distKm = as.numeric(lapply(X=df$distPx,function(x){return(newDist = (x*10)/140)}))
-    str(df)
+    #str(df)
+    
+    the_model = lm(data = df, formula = df$pFst ~ df$distKm)
+    #smooth_values=data.frame(predict(the_model,se = T)) ## builds smooth values along with standard error
+    
     library(ggplot2)
     library(plotly)
     p = ggplot(df) + geom_point(aes(x = distKm,y = pFst))+
@@ -1016,18 +1189,25 @@
     p = p+  scale_x_continuous(expand=c(0.0,0.0), limits=c(0,max(df$distKm)+2),breaks = seq(0,(max(df$distKm)+2),1)) + #TODO change limits to dynamic values
       scale_y_continuous(expand=c(0.0,0.0), limits=c(0,max(df$pFst)+0.11)) +
       coord_cartesian(xlim = c(0, 27), ylim = c(0, 0.2))+
+      #geom_abline(slope=the_model$coefficients[[2]],intercept = the_model$coefficients[[1]],color="red")+
       #xlim(0,26)+ylim(0,0.4)+
       ylab("Paiwise Fst")+
       xlab("Geographical distance forests")+
-      ggtitle(label = paste("IBD plot - The Daraina Area"))
+      ggtitle(label = paste("IBD plot - The Daraina Area"),subtitle = "Quéméré et al.")+
+      annotate("text",x=7,y=c(0.19,0.18), label=c(paste("slope=",the_model$coefficients[[2]]),paste("intercept=",the_model$coefficients[[1]], sep = "")))
     p
-    ggplotly()
+    #ggplotly()
     return(p)
     
     
   }
   
-  Make_pairFst_distance_plots_allSims = function(array_of_genind_array, generation,between_within_small_seperate_plot = F, vector_small_frags =NULL){
+  Make_pairFst_distance_plots_allSims = function(array_of_genind_array,
+                                                 name_of_simulation, 
+                                                 generation,
+                                                 distanceMethod = "manhattan",
+                                                 between_within_small_seperate_plot = F, 
+                                                 vector_small_frags =NULL){
     
     ##test
     #array_of_genind_array=raw_data_multi_sim
@@ -1066,7 +1246,7 @@
     raw_data_pop = genind2genpop(raw_data_ind,process.other = T,quiet = T)
     
     
-    distance.geographic = dist(raw_data_pop@other$xy)
+    distance.geographic = dist(raw_data_pop@other$xy,method = distanceMethod)
     
     Fst.ibd.list=data.frame()
     for(k in 1:length(array_of_genind_array))
@@ -1075,7 +1255,7 @@
     raw_data_ind = Get_genind_from_gen(a_genind_array = array_of_genind_array[[k]],generation = generation)
     
   
-    compute.Fst.ibd = pairwise.fst(x = raw_data_ind, res.type = "matrix") # if we use the res.type="dist" we lose line/col names
+    compute.Fst.ibd = pairwise.fstb(gsp = raw_data_ind) # if we use the res.type="dist" we lose line/col names
     compute.Fst.ibd = as.dist(compute.Fst.ibd)
     #is.euclid(compute.Fst.ibd)
     #cailliez(compute.Fst.ibd)
@@ -1094,7 +1274,7 @@
     #head(Fst.ibd.df)
     
     distance.geographic.ibd = Dist.to.df(distance.geographic)
-    dist.df = data.frame(distance.geographic.ibd,Fst.ibd.df)
+    dist.df = data.frame(distance.geographic.ibd, Fst.ibd.df)
     #head(dist.df)
     
     if(between_within_small_seperate_plot == FALSE){
@@ -1103,11 +1283,11 @@
         geom_point(aes(x = dist.df$value,y = dist.df$mean))+
         geom_smooth(aes(x = value, y = mean), method = 'lm', se = F, fullrange=T)+
         scale_x_continuous(expand=c(0.0,0.0), limits=c(0,max(dist.df$value)),breaks = seq(0,(max(dist.df$value)+1),1)) + #TODO change limits to dynamic values
-        scale_y_continuous(expand=c(0.0,0.0), limits=c(0,max(dist.df$mean)+0.11)) +
-        coord_cartesian(xlim = c(0, max(dist.df$value)+1), ylim = c(0, 0.2))+
+        scale_y_continuous(expand=c(0.0,0.0), limits=c(0,max(dist.df$mean)+0.1)) +
+        coord_cartesian(xlim = c(0, max(dist.df$value)+1), ylim = NULL)+
         ylab("Paiwise Fst")+
         xlab("Geographical distance between demes")+
-        ggtitle(paste("Generation ",raw_data_ind@other$generation))#+
+        ggtitle(paste("Generation ",raw_data_ind@other$generation),subtitle = name_of_simulation)#+
       #cowplot::theme_cowplot()
     } else {
       
@@ -1147,7 +1327,7 @@
         ylab("Paiwise Fst")+
         xlab("Geographical distance between demes")+
         theme(legend.position=c(0.8, 0.8))+
-        ggtitle(paste("Generation ",raw_data_ind@other$generation))
+        ggtitle(paste("Generation ",raw_data_ind@other$generation),subtitle = name_of_simulation)
       the_plot
       
     } 
@@ -1158,15 +1338,16 @@
   
   pairFst_dist_plots_allSims_fourFragClasses = function(array_of_genind_array,
                                                         generation,
+                                                        name_of_simulation,
                                                         distanceMethod = "manhattan",
-                                                        vector_small_frags,
-                                                        vector_mediumSmall_frags,
-                                                        vector_mediumLarge_frags,
-                                                        vector_large_frags){
+                                                        vector_small_frags = c(2,4,5,7,14,15,16,17,23,26,27,28,33,34,35,41,46,47,48,49),
+                                                        vector_mediumSmall_frags = c(1,3,6,8,12,13,18,19,21,22,29,30,31,32,37,39,42,43,44,45),
+                                                        vector_mediumLarge_frags= c(9,10,11,24,25,36,38,40),
+                                                        vector_large_frags = c(20)){
     
     ##test
-    array_of_genind_array=raw_data_multi_sim[1:2]
-    str(array_of_genind_array,give.head = T,max.level = 2)
+    #array_of_genind_array=raw_data_multi_sim[1:2]
+    #str(array_of_genind_array,give.head = T,max.level = 2)
     #dim(raw_data_multi_sim)
     #dimnames(raw_data_multi_sim)
     #class(raw_data_multi_sim[1,2][[1]])
@@ -1174,12 +1355,12 @@
     #raw_data_multi_sim[1,1]
     #raw_data_multi_sim[[1]][[2]]@other$generation
     
-    generation=6000
-    between_within_small_seperate_plot=F
-    vector_small_frags = c(2,4,5,7,14,15,16,17,23,26,27,28,33,34,35,41,46,47,48,49)
-    vector_mediumSmall_frags = c(1,3,6,8,12,13,18,19,21,22,29,30,31,32,37,39,42,43,44,45)
-    vector_mediumLarge_frags= c(9,10,11,24,25,36,38,40)
-    vector_large_frags = c(20)
+    #generation=6000
+    between_within_small_seperate_plot=T
+    #vector_small_frags = c(2,4,5,7,14,15,16,17,23,26,27,28,33,34,35,41,46,47,48,49)
+    #vector_mediumSmall_frags = c(1,3,6,8,12,13,18,19,21,22,29,30,31,32,37,39,42,43,44,45)
+    #vector_mediumLarge_frags= c(9,10,11,24,25,36,38,40)
+    #vector_large_frags = c(20)
     ##
     
     if(between_within_small_seperate_plot == TRUE && is.null(vector_small_frags)){
@@ -1195,20 +1376,23 @@
     distance.geographic = dist(raw_data_pop@other$xy,method = distanceMethod)
     
     Fst.ibd.list=data.frame()
+    
     Dgen.list = NULL
+    
     raw_data_pop = NULL
-    pairwiseFstMatrixList = NULL
+    
+    pairwiseFstMatrixList = vector(mode = "list", length = length(array_of_genind_array))
     
     for(k in 1:length(array_of_genind_array))
     {
       # we create two instances of data because the pairwise.fst function takes genind objects instead of genepop
       raw_data_ind = Get_genind_from_gen(a_genind_array = array_of_genind_array[[k]],generation = generation)
       
-      raw_data_pop = genind2genpop(raw_data_ind,process.other = T,quiet = T)
-      
-      compute.gen.dist = dist(raw_data_pop)
-      Dgen.list[[k]] = (compute.gen.dist)
-      
+      if(FALSE){#used to calc mantelrandtest over all sims
+        raw_data_pop = genind2genpop(raw_data_ind,process.other = T,quiet = T)
+        compute.gen.dist = dist(raw_data_pop)
+        Dgen.list[[k]] = (compute.gen.dist)
+      }
       
       compute.Fst.ibd_newMethod = pairwise.fstb(gsp = raw_data_ind)
       compute.Fst.ibd_newMethod = as.dist(compute.Fst.ibd_newMethod,diag = F,upper = F)
@@ -1230,6 +1414,7 @@
       }
   }
 
+    if(FALSE){
     # Reduces all the lists to 1 by adding their individual elements
     # we then divide that value with the length of the original list to get the mean
     # could possible use this method to some of the other objects where im also calculating over lists of matrices
@@ -1239,7 +1424,7 @@
     
     ## Calc mantel randtest
     ibd_mantel_randtest = mantel.randtest(Dgen.mean, distance.geographic)
-    ## TODO: use functions below instead of computing it here
+    }
     
     
     # head(data.frame(Fst.ibd.list))
@@ -1302,7 +1487,7 @@
           value.tag.within = c(value.tag.within, "between_frag")
         }
         
-        #
+        # between the small and everyone else
         if(any(as.numeric(strsplit(as.character(within_between.df[i,2]),split = "[aA-zZ]+")[[1]][2]) == as.numeric(vector_small_frags))){
           value.tag.withinBetween = c(value.tag.withinBetween, "small_frag")
         }
@@ -1336,13 +1521,13 @@
         geom_smooth(data =subset(x = within_between.df,value.tag.between=="small_frag") ,aes(x = value, y = mean, color=value.tag.between), method = 'lm', se = F, fullrange=T)
       
       
-      
+      if(FALSE){
       new_data_test = subset(x = within_between.df,value.tag.between=="within_frag")## subset data
       new_model = lm(data = new_data_test,
                      formula = new_data_test$mean ~ new_data_test$value) ## create linear regression model gen ~ geo
       
       
-      if(FALSE){
+      
         ## method to build geom_smooth of the data without actually using geom_smooth
         
         smooth_values=data.frame(predict(new_model,se = T)) ## builds smooth values along with standard error
@@ -1381,11 +1566,11 @@
           the_plots_list[[i]]+
           scale_x_continuous(expand=c(0.0,0.0), limits=c(0,max(dist.df$value)+1),breaks = seq(0,(max(dist.df$value)+1),1)) + 
           scale_y_continuous(expand=c(0.0,0.0), limits=c(0,max(dist.df$mean)+0.11)) +
-          coord_cartesian(xlim = c(0, max(dist.df$value)+1), ylim = c(0, 0.2))+
+          coord_cartesian(xlim = c(0, max(dist.df$value)+1), ylim = c(0, 1.0))+
           ylab("Paiwise Fst")+
           xlab("Geographical distance between demes")+
           theme(legend.position=c(0.8, 0.8))+
-          ggtitle(paste("Generation ",raw_data_ind@other$generation))
+          ggtitle(paste("Generation ",raw_data_ind@other$generation),subtitle = name_of_simulation)
           
       }
       
@@ -1401,28 +1586,33 @@
   #COMPUTE PAIRWISE_FST/DISTANCE (IBD) PLOT SLOPE OVER TIME
   ################
   #+++++++++++++++ 
-  Compute.PairwiseFst.IBD.Slope.OverTime = function(array_of_genind_array, distanceMethod = distanceMethod,isPairwiseFstdist = TRUE){
+  Compute.PairwiseFst.IBD.Slope.OverTime = function(array_of_genind_array,name_of_simulation, distanceMethod = "manhattan",isPairwiseFstdist = TRUE){
     
     
 
-    array_of_genind_array=raw_data_multi_sim
-
+    #array_of_genind_array=raw_data_multi_sim
+    #distanceMethod = "manhattan"
+    #isPairwiseFstdist = TRUE
+    #*******
+    
     generation_list=NULL
     Dgen.mean = NULL
     #length(levels(array_of_genind_array[[1]][[50]]@pop))
     
-    for(j in 2:length(array_of_genind_array[[1]])){ # 1:length(array_of_genind_array[[1]])
+    for(j in 1:length(array_of_genind_array[[1]])){ # 1:length(array_of_genind_array[[1]])
       Dgen.list = NULL
     for(i in 1:length(array_of_genind_array)){
       
+      #drop POPs that have less than 2 individuals (related to problems with pairwise.fstb)
+      data_with_dropPop = selPopSize(array_of_genind_array[[i]][[j]],nMin=2)
       
       # choose if we want dist vs pairwiseFst method
-      if(!isPairwiseFstdist){
-        raw_data_pop = genind2genpop(array_of_genind_array[[i]][[j]],process.other = T,quiet = T)
-        compute.gen.dist = dist(raw_data_pop)
+      if(isPairwiseFstdist){
+        compute.gen.dist = pairwise.fstb(gsp = data_with_dropPop)
+        compute.gen.dist = as.dist(compute.gen.dist ,diag = F,upper = F)
       }else{
-      compute.gen.dist = pairwise.fstb(gsp = array_of_genind_array[[i]][[j]])
-      compute.gen.dist = as.dist(compute.gen.dist ,diag = F,upper = F)
+        raw_data_pop = genind2genpop(data_with_dropPop,process.other = T,quiet = T)
+        compute.gen.dist = dist(raw_data_pop)
       }
       Dgen.list[[i]] = (compute.gen.dist)
       
@@ -1437,12 +1627,13 @@
       
     }
     
+    raw_data_pop = genind2genpop(array_of_genind_array[[1]][[1]],process.other = T,quiet = T)
     distance.geographic = dist(raw_data_pop@other$xy,method = distanceMethod)
     distance.geographic = Dist.to.df(distance.geographic)
     
     Dgen.to.df.allSims=NULL
     
-    for(i in 5:length(Dgen.mean)){
+    for(i in 1:length(Dgen.mean)){
       Dgen.mean[[i]] = as.dist(Dgen.mean[[i]])
       if(empty(Dgen.to.df.allSims)){
         Dgen.mean.df = Dist.to.df(Dgen.mean[[i]])
@@ -1457,35 +1648,65 @@
     new_data_test = data.frame(distance.geographic)
     new_data_test = data.frame(new_data_test,Dgen.to.df.allSims[,3:length(Dgen.to.df.allSims)])
     
+    
     #plot data pFst vs geodist as in normal IBD plot
-    ggplot(new_data_test)+
+    if(FALSE){
+    #just testing stuff
+      ggplot(new_data_test)+
       geom_smooth(aes(x=new_data_test$value,y=new_data_test$generationMean.19, col="19"),method = "lm",se = T)+
       geom_point(aes(x=new_data_test$value,y=new_data_test$generationMean.19, col="19"))+
       geom_smooth(aes(x=new_data_test$value,y=new_data_test$generationMean, col="1",size=2),method = "lm",se = T)+
       geom_point(aes(x=new_data_test$value,y=new_data_test$generationMean, col="1"))+
       geom_abline(slope = 0.0006182,intercept = 0.0351354, color = "black")
-    
+    }
     
     
     slope.df = NULL
+    intercept.df = NULL
     all_model_information = NULL
-    for(i in 4:(length(new_data_test))){
+    # excluding first 4 cols because they correspond to "row", "col", "value" and the first generation
+    # first gen full of NaNs
+    for(i in 5:(length(new_data_test))){
     new_model = lm(data = new_data_test,
                    formula = new_data_test[,i] ~ new_data_test$value) ## create linear regression model gen ~ geo
     all_model_information[[i-3]] = new_model
-    slope.df[i-3] = new_model$coefficients[[2]]
+    slope.df[i-4] = new_model$coefficients[[2]]
+    intercept.df[i-4] = new_model$coefficients[[1]]
     }
     
     
     #head(slope.df[1:20,])
-    slope.df = data.frame(mean = slope.df,generation_list[4:99])
+    slope.df = data.frame(mean = slope.df,generation_list=generation_list[2:length(generation_list)])
+    intercept.df= data.frame(mean = intercept.df,generation_list=generation_list[2:length(generation_list)])
+    #head(slope.df)
+    #length(all_model_information)
     
-    ggplot(slope.df)+geom_line(aes(x=slope.df$generation_list, y=slope.df$mean))+geom_point(aes(x=slope.df$generation_list, y=slope.df$mean))+
-      geom_abline(data = all_model_information[[1]],slope = all_model_information[[1]]$coefficients[[2]],intercept = all_model_information[[1]]$coefficients[[1]], color="red")+
-      geom_abline(data = all_model_information[[19]],slope = all_model_information[[19]]$coefficients[[2]],intercept = all_model_information[[19]]$coefficients[[1]], color="blue")+
-      coord_cartesian(xlim = NULL, ylim = NULL, expand = TRUE)
+    p.slope = ggplot(slope.df)+
+      #geom_line(aes(x=slope.df$generation_list, y=slope.df$mean))+
+      geom_point(aes(x=slope.df$generation_list, y=slope.df$mean))+
+      #geom_abline(data = all_model_information[[2]],slope = all_model_information[[2]]$coefficients[[2]],intercept = all_model_information[[2]]$coefficients[[1]], color="red")+
+      #geom_abline(data = all_model_information[[1201]],slope = all_model_information[[1201]]$coefficients[[2]],intercept = all_model_information[[1201]]$coefficients[[1]], color="blue")+
+      geom_smooth(aes(x=slope.df$generation_list, y=slope.df$mean))+
+      coord_cartesian(xlim = NULL, ylim = NULL, expand = T)+ggtitle(label = "IBD slope over time",subtitle = name_of_simulation)
+    
+    p.intercept = ggplot(intercept.df)+
+      #geom_line(aes(x=intercept.df$generation_list, y=intercept.df$mean))+
+      geom_point(aes(x=intercept.df$generation_list, y=intercept.df$mean))+
+      #geom_abline(data = all_model_information[[2]],slope = all_model_information[[2]]$coefficients[[2]],intercept = all_model_information[[2]]$coefficients[[1]], color="red")+
+      #geom_abline(data = all_model_information[[1201]],slope = all_model_information[[1201]]$coefficients[[2]],intercept = all_model_information[[1201]]$coefficients[[1]], color="blue")+
+      geom_smooth(aes(x=intercept.df$generation_list, y=intercept.df$mean))+
+      coord_cartesian(xlim = NULL, ylim = NULL, expand = T)+ggtitle(label = "IBD intercept over time",subtitle = name_of_simulation)
+    
+    
+    
+    if(FALSE){
+    ggplot()+geom_abline(data = all_model_information[[2]],slope = all_model_information[[2]]$coefficients[[2]],intercept = all_model_information[[2]]$coefficients[[1]], color="red")+
+      geom_abline(data = all_model_information[[1197]],slope = all_model_information[[1197]]$coefficients[[2]],intercept = all_model_information[[1197]]$coefficients[[1]], color="blue")+
+      coord_cartesian(xlim = c(-1,1), ylim = c(-1,1), expand = F)
+    }
+      
+    if(FALSE){
     ## method to build geom_smooth of the data without actually using geom_smooth
-    
     smooth_values=data.frame(predict(new_model,se = T)) ## builds smooth values along with standard error
     
     
@@ -1504,7 +1725,9 @@
     g <- g + geom_smooth(method = "lm",color="green", size=2)
     g <- g + geom_abline(slope = new_model$coefficients[[2]],intercept = new_model$coefficients[[1]], color="red")
     g
+    }
     
+    return(list(p.slope, p.intercept))
     
   }
   
@@ -1631,6 +1854,14 @@
   }
   
   
+  ## save plots with set size
+  save_the_plot = function(plotObject, pathToPlot = "~/Documents/",nameOfPlotFile){
+    ggplot2::ggsave(plot = plotObject, file = paste(pathToPlot,"/", nameOfPlotFile,".pdf",sep=""), units = "cm", width = 18, height = 13)
+    
+  }
+  
+  
+  
   ###########################################################################
   ###########################################################################
   #++++SECTION 4 - DO DATA ANALYSIS 
@@ -1638,430 +1869,7 @@
   ###########################################################################
   
   
-  
-  args = commandArgs(trailingOnly=TRUE)
-  if (length(args)==0) {
-          stop("At least one argument must be supplied (name of simulation).", call.=FALSE)
-  }
-  
-  name_of_simulation = args[1] 
-  name_of_simulation = "sim_21x21_k100_r04_m01_newLayout"
-  name_of_simulation = "sim_HWTest_1x1_k1000_r04_m00_mu00"
-  name_of_simulation = "simulation_20x20_k100_r04_m01_noFrag_50000gen"
-  name_of_simulation = "simulation_20x20_k100_r04_m01"
-  name_of_simulation = "simulation_10x10_k400_r04_m01_noFrag_20kGen"
-  
-  name_of_simulation = "r05_m01_k100_10x10_t6000"
-  
-  
-  # set parameters
-  the_number_of_simulations = Set_number_of_simulations(5)
-  the_generation_list = Set_generations_list(0,6000,5)
-  the_layers_list = Set_layers_list("layer0")
-  the_markers_list = Set_markers_list("A1","A2","A3","A4","A5","A6","A7","A8","A9","A10")
-  
-  # set working directory (where data is located)
-  #mount folder from elephant
-  #sshfs tmaie@elephant01a:/Users/tmaie/SINS_Sampler ~/server_folder
-  the_path_to_data = paste("~/server_folder/SINS_Sampler/dist/output/",name_of_simulation,"/",name_of_simulation,"/",sep="")
-  #the_path_to_data = ("~/Documents/Documents/NetBeansProjects/SINS2_oct_20132/SINS2_oct_2013/SINStoArlequin/output/test_outputFormat/STANDARD_5x5_test/")
-  #setwd(the_path_to_data)
-  the_path_to_plot_folder = file.path("~","Documents","R_Plots")
-  
-  # get names of the files and then get data from these files
-  the_file_names = Get_file_names(the_generation_list, the_layers_list)
-  raw_data_single_sim = Get_data_from_files_single_sim(the_file_names = the_file_names,
-                                 set_markers = the_markers_list,
-                                 generations_list = the_generation_list,
-                                 path_to_data = the_path_to_data,
-                                 simulation_number = 1,is_marker_diploid = TRUE)
-  
-  raw_data_multi_sim = Get_data_from_files_multi_sim(the_file_names = the_file_names,
-                                            set_markers = the_markers_list,
-                                            generations_list = the_generation_list,
-                                            path_to_data = the_path_to_data,
-                                            number_of_simulations = the_number_of_simulations,
-                                            is_marker_diploid = TRUE)
-  
-  #raw_data_multi_sim=NULL
-  #raw_data_multi_sim[[2]][[50]]@other$generation
-  #str(raw_data_multi_sim,max.level = 1)
-  #raw_data_multi_sim[2,3][[1]]@other$generation
-  
-  
-  
-  
-  #############SUBSAMPLE SAMPLE TO SINGLE DEME OVER ALL SIMS
-  head(raw_data_single_sim[[1]]@other$xy, n=50)
-  
-  raw_data_single_sim[[1]]@other$xy
-  length(raw_data_single_sim)
-  for(i in 1:length(raw_data_single_sim)){
-    raw_data_single_sim[[i]]@other$xy
-  }
-  ##TODO########################
-  ##############################
-  ##REPOOL DIFFERENT SIMULATIONS## Is it worth to do so?
-  raw_data3=NULL
-  for(i in (1:600)){
-    
-    
-   raw_data3 = c(raw_data3,repool(raw_data[[i]],raw_data2[[i]]))
-  }
-  raw_data3[[500]]
-  raw_data[[500]]
-  raw_data2[[500]]
-  ##############################
-  
-  # perform analysis #######
-  
-  sample.summary = Do_summary_calcs(
-    simulation_name = name_of_simulation,
-    the_genind_obj = Get_genind_from_gen(
-      a_genind_array = raw_data_single_sim,
-      generation = 1000),
-    the_path_to_plot_folder)
-  
-  
-  Hs(raw_data_single_sim[[587]])
-  hw.test(raw_data_single_sim[[587]])
-  
-  pop1a = genind2genpop(raw_data_single_sim[[586]],process.other = T)
-  pop1a@other$generation
-  summary(pop1a)
-  
-  pop1a.587 = genind2genpop(raw_data_single_sim[[587]],process.other = T)
-  pop1a.586 = genind2genpop(raw_data_single_sim[[586]],process.other = T)
-  pop1a.587@other$generation
-  summary(pop1a.587)[[6]]
-  ind1a.587 = summary(seploc(raw_data_single_sim[[587]])[[1]])
-  ind1a.587[[6]]
-  pop1a.587@tab
-  locFac(pop1a.587)
-  
-  
-  nLoc(pop1a.587)
-  tab(pop1a.587,freq=TRUE,NA.method="asis")
-  tab(pop1a.586,freq=T)
-  pop1a.586@loc.fac
-  locNames(pop1a.586) = c("A","B","C","D","E","F","G","H","I","J")
-  locNames(pop1a.587) = c("A","B","C","D","E","F","G","H","I","J")
-  out =pop1a.586@tab
-  col.names <- do.call(c,lapply(out[[1]],names))
-  row.names <- row.names(out)
-  out <- matrix(unlist(out), byrow=TRUE, nrow=nrow(pop1a.586@tab),
-                dimnames=list(row.names, c("X","A","B","C","D","E","F","G","H","I","J")))
-  out <- out[, colnames(pop1a.586@tab), drop = FALSE]
-  out[, colnames(pop1a.586@tab), drop = FALSE]
-  
-  
-  Hs(pop1a.587)
-  
-  summary(raw_data_single_sim[[586]])
-  hf.df = hierfstat::genind2hierfstat(raw_data_single_sim[[500]])
-  hierfstat::basic.stats(hf.df)
-  adegenet::makefreq(raw_data_single_sim[[587]])
-  
-  
-  sample.HS = Compute.Hs.make.df(genind_array = raw_data_single_sim)
-  sample.HS.plot = Make.HS.plots(compute.Hs.df.numeric.gen = sample.HS, isSimple = F,initial.gen=0,last.gen=6000)
-  sample.HS.plot
-  ggplot2::ggsave(file=paste(the_path_to_plot_folder,"/",name_of_simulation,"_HSplotPerDeme.pdf",sep=""), width = 20, height = 15)
-  ggplotly()
-  
-  sample.HS.simplePop = Transform_into_simple_pop(genind_array_obj = raw_data_single_sim)
-  sample.HS.simplePop = Compute.Hs.make.df(genind_array = sample.HS.simplePop)
-  sample.HS.simplePop = Make.HS.plots(compute.Hs.df.numeric.gen = sample.HS.simplePop,isSimple = T,initial.gen=0,last.gen=6000)
-  ggplot2::ggsave(file=paste(the_path_to_plot_folder,"/",name_of_simulation,"_HSplotPerFrag.pdf",sep=""), width = 20, height = 15)
-  
-  gen640
-  1000
-  raw_data_multi_sim[101,1][[1]]
-  
-  length(raw_data_multi_sim[,3])
-  stack(Hs(raw_data_multi_sim[601,3][[1]]))
-  sample.HS.all.sim.old = Compute.Hs.over.all.sims(raw_data_multi_sim)
-  sample.HS.all.sim = Compute.Hs.over.all.sims.per.locus(raw_data_multi_sim)
-  sample.HS.all.sim.plot = Make.HS.mean.plots(sample.HS.all.sim,initial.gen = 0,
-                                              last.gen = 6000,
-                                              subtitle = name_of_simulation,
-                                              showPerDeme = T,
-                                              number_of_simulations = length(raw_data_multi_sim))
-  sample.HS.all.sim.plot
-  ggplotly()
-  
-  nb.alleles(data = raw_data_multi_sim[[1]][[2]],diploid = T)
-  raw_data_multi_sim[[1]][[2]]@loc.n.all
-  head(raw_data_multi_sim[[1]][[2]]@tab)
-  
-  ggplot2::ggsave(file=paste(the_path_to_plot_folder,"/",
-                             name_of_simulation,
-                             "_HSavgOver",
-                             length(raw_data_multi_sim),
-                             "Sims.pdf",sep=""), width = 20, height = 15)
-  
-  
-  a =Tot.vs.Avg.N.Alleles(raw_data_multi_sim,F)
-  b =Tot.vs.Avg.N.Alleles(raw_data_multi_sim,T)
-
-
-  #############
-  #############
-  ##plot Het with box plot over time
-  stat_sum_df <- function(fun, geom="crossbar",colour="red", ...) {
-    stat_summary(fun.data=fun, colour=colour, geom=geom, ...)
-  }
-  head(sample.HS.all.sim)
-  ggplot(sample.HS.all.sim, aes(gen, mean))+
-    stat_sum_df("mean_sdl", colour = "black", geom = "line")+
-    stat_sum_df("mean_sdl")+
-    coord_cartesian(xlim = c(0,6000),ylim = c(0,1))+
-    ggtitle("avg")
-  
-  mean_cl_normal(sample.HS.all.sim$mean)
-  mean_se(sample.HS.all.sim$mean)
-  mean_sdl(sample.HS.all.sim$mean)
-  ##########
-  ##########
-  ##########
-  
-  sub.pop1A = subset(sample.HS.all.sim, ind=='pop1A')
-  sub.pop9A = subset(sample.HS.all.sim, ind=='pop9A')
-  sub.popCornerEdge = subset(sample.HS.all.sim, ind=='pop9A'|ind=='pop9B'|ind=='pop9C'|ind=='pop8A'|ind=='pop8B'|
-                         ind=='pop9G'|ind=='pop9M'|ind=='pop5A'|ind=='pop6A')
-  ggplot(sub.popCornerEdge)+geom_point(aes(x = gen, y = mean))+geom_smooth(aes(x = gen, y = mean),formula = y ~ x)+
-    coord_cartesian(xlim = c(0, 20001), ylim = c(0, 1))
-  
-  sub.popNOTCornerEdge = subset(sample.HS.all.sim, !(ind=='pop9A'|ind=='pop9B'|ind=='pop9C'|ind=='pop8A'|ind=='pop8B'|
-                               ind=='pop9G'|ind=='pop9M'|ind=='pop5A'|ind=='pop6A'))
-  ggplot(sub.popNOTCornerEdge)+geom_point(aes(x = gen, y = mean))+geom_smooth(aes(x = gen, y = mean),formula = y ~ x)+
-    coord_cartesian(xlim = c(0, 20001), ylim = c(0, 1))
-  
-  
-  
-  
-  ggplot()+
-    geom_point(aes(x = sub.pop1A$gen, y = sub.pop1A$mean))+
-    geom_smooth(aes(x = sub.pop1A$gen, y = sub.pop1A$mean,colour="1A"),formula = y ~ x)+
-    geom_point(aes(x = sub.pop9A$gen, y = sub.pop9A$mean))+
-    geom_smooth(aes(x = sub.pop9A$gen, y = sub.pop9A$mean,colour="9A"),formula = y ~ x)+
-    coord_cartesian(xlim = c(0, 20001), ylim = c(0, 1))
-  
-  
-  
-  
-  ggplot(sub.pop1A)+geom_point(aes(x = gen, y = mean))+
-    coord_cartesian(xlim = c(0, 20001), ylim = c(0, 1))
-  
-  
-  ## BUG FIX program would crash for some unknown reason without the next line
-  #dev.off()
-  ##
-  
-  pairwise.fst.plot.preFrag = Compute.Fst.plot(raw_data_single_sim$'3000',matrix.as.triangle = T, upper.triangle = F, has.in.graph.txt = F)
-  ggplot2::ggsave(file=paste(the_path_to_plot_folder,"/",name_of_simulation,"_PairwiseFSTplot_Gen3000.pdf",sep=""), width = 20, height = 15)
-  
-  pairwise.fst.plot.postFrag = Compute.Fst.plot(raw_data_single_sim$'6000',matrix.as.triangle = T, upper.triangle = F, has.in.graph.txt = F)
-  ggplot2::ggsave(file=paste(the_path_to_plot_folder,"/",name_of_simulation,"_PairwiseFSTplot_Gen6000.pdf",sep=""), width = 20, height = 15)
-  
-  test.IBD.hypothesis = Test_IBD_hypothesis(raw_data_single_sim$'500')
-  
-  
-  
-  test.IBD.hypothesis_test1 = Test_IBD_hypothesis(raw_data_multi_sim[[1]][[10]])
-  test.IBD.hypothesis_test2 = Make_pairFst_distance_plots_allSims(array_of_genind_array = raw_data_multi_sim,
-                                      generation = 10000,
-                                      between_within_small_seperate_plot = F)
-  
-  ggplotly()
-  
-  #sample.pFstDist = Make_pairFst_distance_plots(genind_array = raw_data,generation =2990)
-  #sample.pFstDist
-  
-  ibd.plot.100 = Make_pairFst_distance_plots_allSims(array_of_genind_array = raw_data_multi_sim,
-                                      generation = 100,
-                                      between_within_small_seperate_plot = F)
-  ibd.plot.1000 = Make_pairFst_distance_plots_allSims(array_of_genind_array = raw_data_multi_sim,
-                                                     generation = 1000,
-                                                     between_within_small_seperate_plot = F)
-  ibd.plot.3000 = Make_pairFst_distance_plots_allSims(array_of_genind_array = raw_data_multi_sim,
-                                                     generation = 3000,
-                                                     between_within_small_seperate_plot = F)
-  ibd.plot.6000.sep.pop = Make_pairFst_distance_plots_allSims(array_of_genind_array = raw_data_multi_sim,
-                                                      generation = 6000,
-                                                      between_within_small_seperate_plot = T,
-                                                      vector_small_frags = c("pop1A","pop2A"))
-  
-  ibd.plot.6000.sep.pop = ibd.plot.6000.sep.pop+coord_cartesian(xlim = c(0, 26), ylim = c(0, 0.5))
-  g=grid.arrange(ibd.plot.100,ibd.plot.1000,ibd.plot.3000,ibd.plot.6000.sep.pop)
-  ggsave(file=paste(the_path_to_plot_folder,"/",name_of_simulation,"_IBDplots.pdf",sep=""), g, width = 20, height = 15)
-  ggplotly()
-  
-  ibd.plot.6000.sep.pop.P = Make_pairFst_distance_plots_allSims(array_of_genind_array = raw_data_multi_sim,
-                                                              generation = 6000,
-                                                              between_within_small_seperate_plot = T,
-                                                              vector_small_frags = c("pop1A","pop2A",
-                                                                                     "pop5A","pop5B","pop5C","pop5D",
-                                                                                     "pop3A","pop3B",
-                                                                                     "pop6A","pop6B","pop6C","pop6D",
-                                                                                     "pop4A","pop4B"))
-  
-  
-  ibd.plot.6000.sep.pop.P+coord_cartesian(xlim = c(0, 26), ylim = c(0, 1))
-  
-  ibd.300=Make_pairFst_distance_plots(
-    genind_array = raw_data_single_sim,
-    generation = 20000, 
-    between_within_small_seperate_plot = F,
-    vector_small_frags = c("pop1A","pop2A"))
-  
-  #sample.pFstDist.seperate=Make_pairFst_distance_plots(
-    #genind_array = raw_data,
-    #generation = 3000, 
-    #between_within_small_seperate_plot = T,
-    #vector_small_frags = c("pop1A","pop2A"))
-  #sample.pFstDist.seperate
-  #
-  ibd.300=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 300, 
-    between_within_small_seperate_plot = F,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.500=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 500, 
-    between_within_small_seperate_plot = F,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.1000=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 1000, 
-    between_within_small_seperate_plot = F,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.1500=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 1500, 
-    between_within_small_seperate_plot = F,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.2000=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 2000, 
-    between_within_small_seperate_plot = F,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.2500=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 2500, 
-    between_within_small_seperate_plot = F,
-    vector_small_frags = c("pop1A","pop2A"))
-  
-  g=grid.arrange(ibd.300,ibd.500,ibd.1000,ibd.1500,ibd.2000,ibd.2500)
-  ggsave(file=paste(the_path_to_plot_folder,"/",name_of_simulation,"_IBDplotPreFrag.pdf",sep=""), g, width = 20, height = 15)
-  # 
-  ibd.300=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 300, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.500=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 500, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.1000=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 1000, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.1500=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 1500, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.2000=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 2000, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.2500=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 2500, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  
-  g=grid.arrange(ibd.300,ibd.500,ibd.1000,ibd.1500,ibd.2000,ibd.2500)
-  ggsave(file=paste(the_path_to_plot_folder,"/",name_of_simulation,"_IBDplotPreFrag_smallFragVSAll.pdf",sep=""), g, width = 20, height = 15)
-  
-  ibd.3000=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3000, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.3010=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3010, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.3020=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3020, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.3030=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3030, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.3040=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3040, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.3050=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3050, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  
-  g=grid.arrange(ibd.3000,ibd.3010,ibd.3020,ibd.3030,ibd.3040,ibd.3050)
-  ggsave(file=paste(the_path_to_plot_folder,"/",name_of_simulation,"_IBDplotPostFrag10Int.pdf",sep=""), g, width = 20, height = 15)
-  
-  ibd.3000=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3000, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.3050=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3050, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.3100=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3100, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.3150=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3150, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.3200=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3200, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  ibd.3250=Make_pairFst_distance_plots(
-    genind_array = raw_data,
-    generation = 3250, 
-    between_within_small_seperate_plot = T,
-    vector_small_frags = c("pop1A","pop2A"))
-  
-  g=grid.arrange(ibd.3000,ibd.3050,ibd.3100,ibd.3150,ibd.3200,ibd.3250)
-  ggsave(file=paste(the_path_to_plot_folder,"/",name_of_simulation,"_IBDplotPostFrag50Int.pdf",sep=""), g, width = 20, height = 15)
-  
-  
-  print("Analysis Finished.")
-  
-  
+  # MOVED TO "Run_SINS_data_analysis.r"
   
   
   
