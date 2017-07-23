@@ -21,7 +21,6 @@ if(!require("devtools")){
   }
 
 
-
 if (suppressPackageStartupMessages(!require("adegenet")))
   {install.packages("adegenet", dependencies = TRUE)}
 if (suppressPackageStartupMessages(!require("ade4")))
@@ -50,6 +49,11 @@ if (suppressPackageStartupMessages(!require("StAMPP")))
 {install.packages("StAMPP", dependencies = TRUE)}
 if (suppressPackageStartupMessages(!require("gridExtra")))
 {install.packages("gridExtra", dependencies = TRUE)}
+if (suppressPackageStartupMessages(!require("doParallel")))
+{install.packages("doParallel", dependencies = TRUE)}
+if (suppressPackageStartupMessages(!require("foreach")))
+{install.packages("foreach", dependencies = TRUE)}
+
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -253,79 +257,113 @@ Read_data_func = function(name_of_file,
 #to get data from sins to adegenet
 #TODO: choose which generations to get
 #TODO: enable option to load haploid data
-readSinsData = function(dataDirectory, simName, nSim, markers = c(...),layerName){
+readSinsData = function(dataDirectory, simulationName, nSim=c(1:2), markers = c(...),layerName,dataFormat,n_cores=2){
 
-  library(doParallel)
-  library(foreach)
+  if (suppressPackageStartupMessages(!require("doParallel")))
+  {install.packages("doParallel", dependencies = TRUE)}
+  if (suppressPackageStartupMessages(!require("foreach")))
+  {install.packages("foreach", dependencies = TRUE)}
 
-  #dataDirectory = "/home/tmaie/NetBeansProjects/sins2/results/"
-  #simulationName = "STANDARD_5x5_test"
+  #dataDirectory = "~/ServerFolders/Haystack_ServerFolder/SINS_Output/"
+  #simulationName = "13x13_K50_m01_hlf_30STR"
+  #simulationName = "25x25_25kGen"
   #nSim = 2
   #markers = c("A1","A3","A5")
-  #generations = seq(10,20,2)
+  #generations = 25000
   #indPerGen = 4
   #layerName = "layer0"
-
-  dataDirectory = dataDirectory
-  simulationName = simName
+  #n_cores = 2
+  #dataFormat = "adegenet"
 
   fileName = paste(dataDirectory,
-                   simulationName,"/simulation_",c(1:nSim),"/",
+                   simulationName,"/simulation_",nSim,"/",
                    sep="")
 
 
   #register parallel parameters
-  mkCluster = makeCluster(2)
-  registerDoParallel(mkCluster)
+  #to use the SNOW parallel system instead of the MULTICORE parallel system,
+  #uncomment the line below and feed that variable to registerDoParallel()
+  #also uncomment stopCluster() after the foreach loops. SNOW is slower than MULTICORE
+  #mkCluster = makeCluster(n_cores)
+  registerDoParallel(cores = n_cores)
 
   myData =
     foreach(i=fileName) %:%
     foreach(m=markers,.packages = c('data.table','adegenet')) %dopar% {
-      dataFile = fread(input = paste(i,layerName,"_",m,".txt",sep=""),sep = "\t",header = FALSE)
 
-      colnames(dataFile) = c("id", m, "X","Y","pop","gen")
+      dataFile = fread(input = paste(i,layerName,"_",m,".txt",sep=""),
+                       sep = "auto", header = FALSE, na.strings = "NA",
+                       encoding = "UTF-8")
+
+      if(dataFormat == "sins"){
+        colnames(dataFile) <- c("gen","X","Y","id","mom","dad",m)
+        dataFile$pop = paste0("pop_",dataFile$X,"-",dataFile$Y)
+      }else{
+        colnames(dataFile) = c("id", m, "X","Y","pop","gen")
+      }
       #create a unique ID key for all lines
-      dataFile$key =seq_len(nrow(dataFile))
-      dataFile = data.table(dataFile,key ="key")
+      dataFile$key = seq_len(nrow(dataFile))
+      dataFile = data.table(dataFile, key ="key")
 
       return(dataFile)
 
     }
 
+  #stopCluster(mkCluster)
+
   #merge data so that all markers are in one data structure
-  mergeAllMarkers = foreach(i=1:length(myData)) %do%{
-    Reduce(function(...) merge(...,by=c("key","id", "X","Y","pop","gen")),myData[[i]])
+  if(dataFormat == "sins"){
+    mergeAllMarkers = foreach(i=1:length(myData)) %do%{
+      Reduce(function(...) merge(...,by=c("key","id", "X","Y","pop","gen","mom","dad")),myData[[i]])
+    }
+  }else{
+    mergeAllMarkers = foreach(i=1:length(myData)) %do%{
+      Reduce(function(...) merge(...,by=c("key","id", "X","Y","pop","gen")),myData[[i]])
+    }
   }
 
+  rm(myData)
 
   numMarkers = length(markers)
 
+
   genIndObj<-
     foreach(j=1:length(mergeAllMarkers)) %do%{
-
       #split data by generation
       splitPerGen = split(mergeAllMarkers[[j]],f = mergeAllMarkers[[j]][[6]])
       #apply genind function on split data so that we have a list of
       #gen ind obj per generation
-      genIndArrPerGen = lapply(X = splitPerGen, function(df){
+      mkCluster = makeCluster(n_cores,type = "FORK")
+      clusterExport(cl = mkCluster, varlist = c("j","numMarkers","splitPerGen","dataFormat","df2genind"), envir = environment())
+      genIndArrPerGen = parLapply(cl = mkCluster, X = splitPerGen, fun = function(df){
+
+        firstMarkerIdx = ncol(df) - numMarkers + 1
+        lastMarkerIdx = ncol(df)
+
         #df2genind takes single matrix of markers only
-        genObj = df2genind(X = df[,7:(7+numMarkers-1)],
-                           sep = "/",ploidy = 2,ncode = 3,
+        genObj = df2genind(X = df[,firstMarkerIdx:lastMarkerIdx],
+                           sep = "/", ploidy = 2, ncode = 3,
                            ind.names = df[[2]],
-                           pop = df[[5]],type = "codom"
+                           pop = df[[5]], type = "codom"
         )
         #add misc information
+        if(dataFormat == "sins"){
+          genObj@other$mom = df[[7]]
+          genObj@other$dad = df[[8]]
+        }
         xy_coords = cbind(df[[3]],df[[4]])
         genObj@other$generation = unique(df[[6]])
         genObj@other$xy = xy_coords
+        genObj@other$simID = j
         return(genObj)
       })
+
+      stopCluster(mkCluster)
       return(genIndArrPerGen)
     }
 
+  return(genIndObj)
 }
-
-
 
 
 

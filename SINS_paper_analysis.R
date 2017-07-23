@@ -21,31 +21,32 @@ if (FALSE) {
   name_of_simulation = "test_case_5x5_t100"
   name_of_simulation = "r05_m01_k100_10x10_t6000_f3000"
   name_of_simulation = "r05_m01_k100_21x_t25k_f20k_tw19-25_loTM"
+  name_of_simulation = "r05_m01_k100_20x_t25k_f20k_tw19-25"
   name_of_simulation = "STANDARD_5x5_test"
-  currentDirectory = "/home/tiago/Documents/Documents/R/R_scripts/SINS_adegenet"
-  dataDirectory = "~/server_folder/SINS_Sampler/dist/output"
+  currentDirectory = "/home/tmaie/R_Projects/SINS_adegenet"
+  dataDirectory = "~/ServerFolders/Elephant_ServerFolder/SINS_Sampler/dist/output"
   dataDirectory = ""
-  initalGen = 10
-  lastGen = 200
+  initalGen = 100
+  lastGen = 0
   intervalGen = 10
-  
-  
+
+
   setwd(currentDirectory)
-  
+
 }
 
 source("SINS_data_analysis.r")
 
 
-
-#######################
+#++++++++++++++++++++++
 ######## INPUT ########
-#######################
+#++++++++++++++++++++++
+
 # set parameters
-the_number_of_simulations = Set_number_of_simulations(2)
+the_number_of_simulations = Set_number_of_simulations(5)
 the_generation_list = Set_generations_list(initalGen, lastGen, intervalGen)
 the_layers_list = Set_layers_list("layer0")
-the_markers_list = Set_markers_list("A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10")
+the_markers_list = Set_markers_list( "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10")
 
 the_path_to_data = paste(dataDirectory,
                          "/",
@@ -54,33 +55,27 @@ the_path_to_data = paste(dataDirectory,
                          name_of_simulation,
                          "/",
                          sep = "")
-the_path_to_plot_folder = file.path("~", "SINS_R_Plots", name_of_simulation)
+the_path_to_plot_folder = file.path("~", "R_Projects","R_Plots","SINS_R_Plots", name_of_simulation)
 
 # Create dir for plots
 dir.create(the_path_to_plot_folder, recursive = T)
 #setwd(the_path_to_plot_folder)
 
-#######################
-#######################
-#######################
 
+#+++++++++++
 
 # get names of the files and then get data from these files
-the_file_names = Get_file_names(the_generation_list, the_layers_list)
+the_file_names = Get_file_names(seq(10,100,10), the_layers_list)
 
 raw_data_multi_sim = Get_data_from_files_multi_sim(
   the_file_names = the_file_names,
   set_markers = the_markers_list,
-  generations_list = the_generation_list,
+  generations_list = seq(10,100,10),
   path_to_data = the_path_to_data,
   number_of_simulations = the_number_of_simulations,
   is_marker_diploid = TRUE
 )
 
-
-#######################
-#######################
-#######################
 
 
 
@@ -94,27 +89,27 @@ if (is.element("t25k", unlist(strsplit(
   IBD.over.time = Compute.PairwiseFst.IBD.Slope.OverTime(array_of_genind_array = raw_data_multi_sim,
                                                          name_of_simulation = name_of_simulation,
                                                          env.change = 20000)
-  
+
   save_the_plot(
     plotObject = IBD.over.time[[1]],
     pathToPlot = the_path_to_plot_folder,
     nameOfPlotFile = paste(name_of_simulation, "_IBDOverTime_slope",
                            sep = "")
   )
-  
+
   save_the_plot(
     plotObject = IBD.over.time[[2]],
     pathToPlot = the_path_to_plot_folder,
     nameOfPlotFile = paste(name_of_simulation, "_IBDOverTime_intercept",
                            sep = "")
   )
-  
 
-  
+
+
   if (is.element("loTM", unlist(strsplit(
     name_of_simulation, split = "_", fixed = T
   )))) {
-  
+
     print("Compute.Hs.over.all.sims.per.locus")
     hs.allsim.per.locus = Compute.Hs.over.all.sims.per.locus(raw_data_multi_sim)
     hs_mean_plot = Make.HS.mean.plots(
@@ -136,9 +131,9 @@ if (is.element("t25k", unlist(strsplit(
       nameOfPlotFile = paste(name_of_simulation, "_HSmeanPlot",
                              sep = "")
     )
-    
-    
-    
+
+
+
   print("IBD plots")
   ibd.plots.list = lapply(X = seq(19000, 25000, 1000), function(X) {
     pairFst_dist_plots_allSims_fourFragClasses(
@@ -147,10 +142,10 @@ if (is.element("t25k", unlist(strsplit(
       name_of_simulation = name_of_simulation
     )#[[2]]
   })
-  
+
   }else{
-    
-    
+
+
     print("Compute.Hs.over.all.sims.per.locus")
     hs.allsim.per.locus = Compute.Hs.over.all.sims.per.locus(raw_data_multi_sim)
     hs_mean_plot = Make.HS.mean.plots(
@@ -172,8 +167,8 @@ if (is.element("t25k", unlist(strsplit(
       nameOfPlotFile = paste(name_of_simulation, "_HSmeanPlot",
                              sep = "")
     )
-    
-    
+
+
     print("IBD plots")
     ibd.plots.list = lapply(X = seq(19000, 25000, 1000), function(X) {
       pairFst_dist_plots_allSims_fourFragClasses(
@@ -186,16 +181,16 @@ if (is.element("t25k", unlist(strsplit(
         vector_large_frags = c(8,9)
       )#[[2]]
     })
-    
-    
+
+
   }
-  
+
   plotFourFragClassesIBD_toFile(ibd.plots.list,
                                 the_path_to_plot_folder,
                                 name_of_simulation)
-  
+
 } else{
-  
+
   print("IBD over time")
   IBD.over.time = Compute.PairwiseFst.IBD.Slope.OverTime(array_of_genind_array = raw_data_multi_sim,
                                                          name_of_simulation = name_of_simulation,
@@ -206,14 +201,14 @@ if (is.element("t25k", unlist(strsplit(
     nameOfPlotFile = paste(name_of_simulation, "_IBDOverTime_slope",
                            sep = "")
   )
-  
+
   save_the_plot(
     plotObject = IBD.over.time[[2]],
     pathToPlot = the_path_to_plot_folder,
     nameOfPlotFile = paste(name_of_simulation, "_IBDOverTime_intercept",
                            sep = "")
   )
-  
+
   print("Compute.Hs.over.all.sims.per.locus")
   hs.allsim.per.locus = Compute.Hs.over.all.sims.per.locus(raw_data_multi_sim)
   hs_mean_plot = Make.HS.mean.plots(
@@ -229,15 +224,15 @@ if (is.element("t25k", unlist(strsplit(
     vector_mediumLarge_frags = c(5),
     vector_large_frags = c(6)
   )
-  
+
   save_the_plot(
     plotObject = hs_mean_plot,
     pathToPlot = the_path_to_plot_folder,
     nameOfPlotFile = paste(name_of_simulation, "_HSmeanPlot",
                            sep = "")
   )
-  
-  
+
+
   print("IBD plots")
   ibd.plots.list = lapply(X = seq(1000, 6000, 1000), function(X) {
     pairFst_dist_plots_allSims_fourFragClasses(
@@ -250,11 +245,11 @@ if (is.element("t25k", unlist(strsplit(
       vector_large_frags = c(6)
     )#[[2]]
   })
-  
-  
+
+
   plotFourFragClassesIBD_toFile(ibd.plots.list,
                                 the_path_to_plot_folder,
                                 name_of_simulation)
-  
-  
+
+
 }
